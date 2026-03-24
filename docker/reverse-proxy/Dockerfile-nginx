@@ -1,0 +1,15 @@
+FROM nginx:stable
+
+LABEL maintainer="Mark Taguiad <marktaguiad@marktaguiad.dev>"
+
+# Install curl (optional, same as your Apache image)
+RUN apt-get update -y && \
+    apt-get install -y curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy nginx config
+COPY nginx.conf /etc/nginx/nginx.conf
+
+# Copy static files
+COPY ./htdocs/ /usr/share/nginx/html/

@@ -1,0 +1,17 @@
+FROM httpd:2.4-trixie
+
+LABEL Maintainer="Mark Taguiad <marktaguiad@marktaguiad.dev>"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+RUN apt update -y && \
+    apt install curl -y && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN sed -i '/LoadModule proxy_module/s/^#//g' /usr/local/apache2/conf/httpd.conf \
+ && sed -i '/LoadModule proxy_http_module/s/^#//g' /usr/local/apache2/conf/httpd.conf \
+ && sed -i '/LoadModule rewrite_module/s/^#//g' /usr/local/apache2/conf/httpd.conf
+
+COPY ./httpd.conf /usr/local/apache2/conf/httpd.conf
+COPY ./htdocs/ /usr/local/apache2/htdocs/

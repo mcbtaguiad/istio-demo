@@ -1,0 +1,43 @@
+services:
+  reverse-proxy:
+    container_name: reverse-proxy
+    image: docker.io/mcbtaguiad/istio-demo:reverse-proxy
+    build:
+      context: ./reverse-proxy
+      dockerfile: Dockerfile-nginx
+    restart: always
+    ports:
+      - "8080:80"
+
+  frontend:
+    container_name: frontend
+    image: docker.io/mcbtaguiad/istio-demo:frontend
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    environment:
+      - VERSION=1.0.0
+    restart: always
+    ports:
+      - "3000:3000"
+
+  backend:
+    container_name: backend
+    image: docker.io/mcbtaguiad/istio-demo:backend
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      - VERSION=1.0.0
+    restart: always
+    ports:
+      - "3001:3001"
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+
+
+  
