@@ -1,0 +1,15 @@
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-frontend-to-backend
+spec:
+  selector:
+    matchLabels:
+      app: demo-app
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/demo/sa/demo-app
+        - cluster.local/ns/other-ns/sa/demo-app
+
