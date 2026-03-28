@@ -1,22 +1,31 @@
-FROM golang:1.26-alpine3.22
-
-LABEL Maintainer="Mark Taguiad <marktaguiad@marktaguiad.dev>"
+# ---- Build Stage ----
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# COPY go.mod go.sum ./
-# RUN go mod download
+# Install dependencies
+# RUN npm install @vitejs/plugin-react --save-dev
+COPY package.json ./
+RUN npm install
 
-RUN go mod init login-app
-RUN go get github.com/redis/go-redis/v9
-RUN go get golang.org/x/crypto/bcrypt
-RUN go get github.com/google/uuid
-RUN go get github.com/golang-jwt/jwt/v5
+# Copy source
+COPY . .
 
-COPY main.go /app/main.go
+# Build the app
+RUN npm run build
 
-RUN go build -o app
 
-EXPOSE 3000
+# ---- Production Stage ----
+FROM nginx:alpine
 
-CMD ["./app"]
+# Remove default nginx config
+RUN rm -rf /usr/share/nginx/html/*
+
+# Copy built files
+COPY --from=builder /app/dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# Expose port
+EXPOSE 80
+
+CMD ["nginx", "-g", "daemon off;"]
