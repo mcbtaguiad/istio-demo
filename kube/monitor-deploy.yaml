@@ -2,61 +2,61 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-v1
+  name: monitor-v1
   labels:
-    app: backend
+    app: monitor
     version: v1
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: backend
+      app: monitor
       version: v1
   template:
     metadata:
       labels:
-        app: backend
+        app: monitor
         version: v1
     spec:
-      serviceAccountName: backend-sa
+      serviceAccountName: monitor-sa
       containers:
-      - name: backend
-        image: docker.io/mcbtaguiad/istio-demo:backend
+      - name: monitor
+        image: docker.io/mcbtaguiad/istio-demo:monitor
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000
+        - containerPort: 8000
         envFrom:
         - configMapRef:
-            name: backendv1.environment
+            name: monitorv1.environment
       restartPolicy: Always
 ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: backend-v2
+  name: monitor-v2
   labels:
-    app: backend
+    app: monitor
     version: v2
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: backend
+      app: monitor
       version: v2
   template:
     metadata:
       labels:
-        app: backend
+        app: monitor
         version: v2
     spec:
-      serviceAccountName: backend-sa
+      serviceAccountName: monitor-sa
       containers:
-      - name: backend
-        image: docker.io/mcbtaguiad/istio-demo:backend
+      - name: monitor
+        image: docker.io/mcbtaguiad/istio-demo:monitor
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000
+        - containerPort: 8000
         envFrom:
         - configMapRef:
-            name: backendv2.environment
+            name: monitorv2.environment
       restartPolicy: Always

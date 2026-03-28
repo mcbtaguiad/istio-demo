@@ -4,17 +4,21 @@ kind: Deployment
 metadata:
   labels:
     app: redis
+    tier: db
   name: redis
 spec:
   replicas: 1
   selector:
     matchLabels:
       app: redis
+      tier: db
   template:
     metadata:
       labels:
         app: redis
+        tier: db
     spec:
+      serviceAccountName: redis-sa
       containers:
       - name: redis
         image: docker.io/bitnami/redis:latest
@@ -33,8 +37,10 @@ metadata:
 spec:
   selector:
     app: redis
+    tier: db
   ports:
-  - port: 6379
+  - name: tcp-redis
+    port: 6379
     targetPort: 6379
 ---
 apiVersion: v1
