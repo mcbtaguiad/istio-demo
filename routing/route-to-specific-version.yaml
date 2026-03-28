@@ -1,27 +1,28 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: demo-app-rr
+  name: demo-app-spec-ver
 spec:
   parentRefs:
     - name: demo-app-gateway
   rules:
-    #  Backend API 
+    # 1️⃣ Backend API 
     - matches:
         - path:
             type: RegularExpression
             value: /api/.*
       backendRefs:
-        - name: backend
+        - name: backend-v2
           port: 3000
 
-    #  Monitor /status
+
+    # 2️⃣ Monitor /status
     - matches:
         - path:
             type: PathPrefix
             value: /status
       backendRefs:
-        - name: monitor
+        - name: monitor-v1
           port: 8000
 
     # 3️⃣ SPA catch-all
