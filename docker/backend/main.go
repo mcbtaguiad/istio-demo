@@ -2,12 +2,17 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"encoding/json"
+	"math/rand"
 	"net/http"
 	"os"
+	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/redis/go-redis/v9"
+	"github.com/rs/cors"
+	"golang.org/x/crypto/bcrypt"
 )
 
 var jwtKey = []byte("averysecretsecretkey")
@@ -17,89 +22,267 @@ var rdb = redis.NewClient(&redis.Options{
 	Addr: "redis:6379",
 })
 
-// ========================
-// JWT HELPER
-// ========================
-func getUserFromJWT(r *http.Request) (string, error) {
-	cookie, err := r.Cookie("token")
-	if err != nil {
-		return "", err
-	}
-	tokenStr := cookie.Value
-	claims := jwt.MapClaims{}
+type Credentials struct {
+	Username string `json:"username"`
+	Password string `json:"password"`
+}
 
-	token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
-		return jwtKey, nil
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func getVersion() string {
+	v := os.Getenv("VERSION")
+	if v == "" {
+		return "dev"
+	}
+	return v
+}
+
+//	func generateJWT(username string) (string, error) {
+//		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+//			"username": username,
+//			"exp":      time.Now().Add(24 * time.Hour).Unix(),
+//		})
+//		return token.SignedString(jwtKey)
+//	}
+func generateJWT(username string) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"username": username,
+		"iss":      "demo-app", // add this
+		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	})
-	if err != nil || !token.Valid {
-		return "", fmt.Errorf("invalid token")
-	}
-
-	username, ok := claims["username"].(string)
-	if !ok {
-		return "", fmt.Errorf("invalid token")
-	}
-	return username, nil
+	return token.SignedString(jwtKey)
 }
 
-// ========================
-// COMMON LAYOUT
-// ========================
-func renderPage(w http.ResponseWriter, title string, body string) {
-	version := os.Getenv("VERSION")
-	if version == "" {
-		version = "dev"
-	}
-
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `
-	<!DOCTYPE html>
-	<html>
-	<head>
-		<title>%s</title>
-		<style>
-			body { font-family: Arial; text-align: center; margin-top: 50px; }
-			a { display: inline-block; margin: 10px; padding: 10px 20px;
-			    text-decoration: none; background-color: #333;
-			    color: white; border-radius: 5px; }
-			a:hover { background-color: #555; }
-		</style>
-	</head>
-	<body>
-		<h1>Backend Service (v%s)</h1>
-		%s
-	</body>
-	</html>
-	`, title, version, body)
+func randomGroup() string {
+	groups := []string{"alpha", "beta"}
+	return groups[rand.Intn(len(groups))]
 }
 
-// ========================
-// BACKEND HANDLER
-// ========================
-func backendHandler(w http.ResponseWriter, r *http.Request) {
-	user, err := getUserFromJWT(r)
-	if err != nil {
-		// Redirect to public URL handled by reverse proxy
-		http.Redirect(w, r, "/login", http.StatusFound)
+// Middleware
+func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokenStr := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
+		if tokenStr == "" {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		claims := jwt.MapClaims{}
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			return jwtKey, nil
+		})
+
+		if err != nil || !token.Valid {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		r.Header.Set("user", claims["username"].(string))
+		next(w, r)
+	}
+}
+
+// Handlers
+
+func registerHandler(w http.ResponseWriter, r *http.Request) {
+	var creds Credentials
+
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
 		return
 	}
 
-	group, _ := rdb.Get(ctx, "group:"+user).Result()
+	exists, _ := rdb.Exists(ctx, "user:"+creds.Username).Result()
+	if exists == 1 {
+		http.Error(w, "User exists", http.StatusConflict)
+		return
+	}
 
-	body := fmt.Sprintf(`
-	<h2>Welcome %s</h2>
-	<p>Your sticky group: %s</p>
-	<a href="/logout">Logout</a>
-	`, user, group)
+	hash, _ := bcrypt.GenerateFromPassword([]byte(creds.Password), 10)
+	rdb.Set(ctx, "user:"+creds.Username, hash, 0)
 
-	renderPage(w, "Backend Home", body)
+	group := randomGroup()
+	rdb.Set(ctx, "group:"+creds.Username, group, 0)
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"group": group,
+	})
 }
 
-// ========================
-// MAIN
-// ========================
+func loginHandler(w http.ResponseWriter, r *http.Request) {
+	var creds Credentials
+
+	if err := json.NewDecoder(r.Body).Decode(&creds); err != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	stored, err := rdb.Get(ctx, "user:"+creds.Username).Bytes()
+	if err != nil || bcrypt.CompareHashAndPassword(stored, []byte(creds.Password)) != nil {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
+	}
+
+	token, _ := generateJWT(creds.Username)
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"token": token,
+	})
+}
+
+func profileHandler(w http.ResponseWriter, r *http.Request) {
+	user := r.Header.Get("user")
+	group, _ := rdb.Get(ctx, "group:"+user).Result()
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"username": user,
+		"group":    group,
+	})
+}
+
+func listUsersHandler(w http.ResponseWriter, r *http.Request) {
+	keys, _ := rdb.Keys(ctx, "user:*").Result()
+
+	type User struct {
+		Username string `json:"username"`
+		Group    string `json:"group"`
+	}
+
+	var users []User
+
+	for _, k := range keys {
+		username := k[len("user:"):]
+		group, _ := rdb.Get(ctx, "group:"+username).Result()
+
+		users = append(users, User{
+			Username: username,
+			Group:    group,
+		})
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"total": len(users),
+		"users": users,
+	})
+}
+
+func deleteUserHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := strings.TrimPrefix(r.URL.Path, "/api/users/")
+	deleted, _ := rdb.Del(ctx, "user:"+username, "group:"+username).Result()
+
+	if deleted == 0 {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "user deleted",
+	})
+}
+
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]string{
+		"version": getVersion(),
+	})
+}
+
+func versionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Version", getVersion())
+		next.ServeHTTP(w, r)
+	})
+}
+
+func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	username := strings.TrimPrefix(r.URL.Path, "/api/users/")
+
+	var body struct {
+		Password string `json:"password"`
+	}
+
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil || body.Password == "" {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		return
+	}
+
+	// check if user exists
+	exists, _ := rdb.Exists(ctx, "user:"+username).Result()
+	if exists == 0 {
+		http.Error(w, "User not found", http.StatusNotFound)
+		return
+	}
+
+	hash, _ := bcrypt.GenerateFromPassword([]byte(body.Password), 10)
+	rdb.Set(ctx, "user:"+username, hash, 0)
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"message": "password updated",
+	})
+}
+
 func main() {
-	http.HandleFunc("/backend", backendHandler)
-	fmt.Println("Backend running on :3001")
-	http.ListenAndServe(":3001", nil)
+	allowedHostsEnv := os.Getenv("ALLOWED_HOSTS")
+
+	originMap := make(map[string]bool)
+
+	// defaults
+	originMap["http://localhost:3001"] = true
+
+	// env
+	if allowedHostsEnv != "" {
+		for _, host := range strings.Split(allowedHostsEnv, ",") {
+			host = strings.TrimSpace(host)
+			if host != "" {
+				originMap[host] = true
+			}
+		}
+	}
+
+	// convert map → slice
+	origins := make([]string, 0, len(originMap))
+	for origin := range originMap {
+		origins = append(origins, origin)
+	}
+	mux := http.NewServeMux()
+
+	mux.HandleFunc("/api/register", registerHandler)
+	mux.HandleFunc("/api/login", loginHandler)
+	mux.HandleFunc("/api/profile", authMiddleware(profileHandler))
+	mux.HandleFunc("/api/version", versionHandler)
+	mux.HandleFunc("/api/users", authMiddleware(listUsersHandler))
+	// mux.HandleFunc("/api/users/", authMiddleware(deleteUserHandler))
+	mux.HandleFunc("/api/users/", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodDelete {
+			deleteUserHandler(w, r)
+			return
+		}
+		if r.Method == http.MethodPut {
+			updatePasswordHandler(w, r)
+			return
+		}
+
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}))
+
+	c := cors.New(cors.Options{
+		AllowedOrigins: origins,
+		// AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowCredentials: true,
+		AllowedHeaders:   []string{"Authorization", "Content-Type"},
+		AllowedMethods:   []string{"GET", "POST", "DELETE", "PUT", "OPTIONS"},
+	})
+
+	http.ListenAndServe(":3000", c.Handler(mux))
 }

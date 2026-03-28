@@ -12,6 +12,7 @@ RUN go get github.com/redis/go-redis/v9
 RUN go get golang.org/x/crypto/bcrypt
 RUN go get github.com/google/uuid
 RUN go get github.com/golang-jwt/jwt/v5
+RUN go get github.com/rs/cors
 
 COPY main.go /app/main.go
 
