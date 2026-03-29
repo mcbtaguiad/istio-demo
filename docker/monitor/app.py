@@ -1,13 +1,21 @@
-from flask import Flask, render_template_string
+"""Monitor service Flask application."""
+
 import os
+
+from flask import Flask, render_template_string
 
 app = Flask(__name__)
 
+
 def get_env(key, fallback):
+    """Get environment variable with fallback."""
     return os.getenv(key, fallback)
 
+
 def get_version():
+    """Return app version from environment."""
     return os.getenv("VERSION", "dev")
+
 
 MAIN_APP_URL = get_env("DEMO_APP_HOST", "http://localhost:3000")
 
@@ -138,13 +146,15 @@ async function updatePassword() {
 </html>
 """
 
+
 @app.route("/status")
 def status():
+    """Render monitor dashboard page."""
+
     return render_template_string(
-        MONITOR_PAGE,
-        monitor_version=get_version(),
-        main_app_url=MAIN_APP_URL
+        MONITOR_PAGE, monitor_version=get_version(), main_app_url=MAIN_APP_URL
     )
+
 
 # if __name__ == "__main__":
 #     app.run(host="0.0.0.0", port=8000)
