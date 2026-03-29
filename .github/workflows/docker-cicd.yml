@@ -1,0 +1,46 @@
+name: tags-cicd
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+
+  checkout:
+    runs-on: ubuntu-latest
+    outputs:
+      repo-path: ${{ steps.repo-path.outputs.path }}
+    steps:
+      - name: Checkout repository
+        id: repo-path
+        uses: actions/checkout@v4
+
+  monitor-app-test:
+    needs: checkout
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.10, 3.11]
+    steps:
+      - name: Use repository
+        uses: actions/checkout@v4
+        with:
+          path: repo  # optional: put in a subfolder
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install deps
+        run: |
+          pip install flask pytest pylint black flake8 isort pytest-cov
+      - name: Run pytest
+        run: pytest repo/docker/monitor --cov=repo/docker/monitor
+      - name: Lint
+        run: pylint repo/docker/monitor/app.py
+      - name: Format check
+        run: black --check repo/docker/monitor/app.py
+      - name: Check imports
+        run: isort --check-only repo/docker/monitor/app.py
+
+
