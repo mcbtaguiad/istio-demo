@@ -1,4 +1,5 @@
 name: tags-cicd
+
 on:
   push:
     branches: [ "main" ]
@@ -23,12 +24,10 @@ jobs:
   # --- Go Tests ---
   backend-test:
     needs: checkout
-
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        go-version: [1.25.7] 
+        go-version: [1.25.7]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -45,18 +44,14 @@ jobs:
       - name: Run Go tests
         working-directory: docker/backend
         run: go test ./... -v
-        # run: go test -v main_test.go
 
   # --- Python Tests ---
   monitor-test:
     needs: checkout
-
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
-        python-version: [3.12.8] 
-
+        python-version: [3.12.8]
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -85,9 +80,7 @@ jobs:
   # --- React Tests ---
   frontend-test:
     needs: checkout
-
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -101,19 +94,19 @@ jobs:
 
       - name: Install dependencies
         working-directory: docker/frontend
-        run: npm ci   # ✅ deterministic install
+        run: npm ci
 
       - name: Run React tests
         working-directory: docker/frontend
         run: npm run test -- --coverage
 
+  # --- Docker Build & Push ---
   build:
+    needs: [backend-test, monitor-test, frontend-test] 
     runs-on: ubuntu-latest
-
     permissions:
       contents: read
       packages: write
-
     strategy:
       matrix:
         service: [frontend, backend, monitor]
@@ -126,25 +119,25 @@ jobs:
         uses: docker/login-action@v2
         with:
           registry: ${{ env.REGISTRY }}
-          username: ${{ secrets.DOCKER_USERNAME }}
-          password: ${{ secrets.DOCKER_PASSWORD }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set service-specific variables
         run: |
           case "${{ matrix.service }}" in
             frontend)
               echo "IMAGE_NAME=frontend" >> $GITHUB_ENV
-              echo "CONTEXT=./frontend" >> $GITHUB_ENV
+              echo "CONTEXT=./docker/frontend" >> $GITHUB_ENV
               echo "PORT=8080" >> $GITHUB_ENV
               ;;
             backend)
               echo "IMAGE_NAME=backend" >> $GITHUB_ENV
-              echo "CONTEXT=./backend" >> $GITHUB_ENV
+              echo "CONTEXT=./docker/backend" >> $GITHUB_ENV
               echo "PORT=3000" >> $GITHUB_ENV
               ;;
             monitor)
               echo "IMAGE_NAME=monitor" >> $GITHUB_ENV
-              echo "CONTEXT=./monitor" >> $GITHUB_ENV
+              echo "CONTEXT=./docker/monitor" >> $GITHUB_ENV
               echo "PORT=8000" >> $GITHUB_ENV
               ;;
           esac
@@ -171,22 +164,3 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           build-args: |
             ENVIRONMENT=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
-
-  # compose:
-  #   runs-on: ubuntu-latest
-  #   needs: build
-  #
-  #   steps:
-  #     - name: Checkout repository
-  #       uses: actions/checkout@v4
-  #
-  #     - name: Set up Docker Compose
-  #       uses: docker/setup-buildx-action@v2
-  #
-  #     - name: Pull redis image
-  #       run: |
-  #         docker pull redis:7-alpine
-  #
-  #     - name: Build and run all services locally
-  #       run: |
-  #         docker-compose -f docker-compose.yml up -d --build
