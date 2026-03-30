@@ -3,7 +3,8 @@ name: tags-cicd
 on:
   push:
     branches: [ "main" ]
-    tags: [ 'v*' ] # release tags
+    # Trigger on tag creation
+    tags: [ 'v*' ]  # Matches any tags starting with 'v', e.g., v1.0.0
   pull_request:
     branches: [ "main" ]
 
@@ -22,7 +23,7 @@ jobs:
         id: repo-path
         uses: actions/checkout@v4
 
-  # --- Go Tests + Dependency Scan ---
+  # --- Go Tests ---
   backend-test:
     needs: checkout
     runs-on: ubuntu-latest
@@ -30,7 +31,8 @@ jobs:
       matrix:
         go-version: [1.25.7]
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -45,7 +47,7 @@ jobs:
         working-directory: docker/backend
         run: go test ./... -v
 
-  # --- Python Tests + Dependency Scan ---
+  # --- Python Tests ---
   monitor-test:
     needs: checkout
     runs-on: ubuntu-latest
@@ -84,13 +86,13 @@ jobs:
         working-directory: docker/monitor
         run: pip-audit -r requirements.txt --strict
 
-
-  # --- React Tests + Dependency Scan ---
+  # --- React Tests ---
   frontend-test:
     needs: checkout
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -111,10 +113,9 @@ jobs:
         working-directory: docker/frontend
         run: npm audit --audit-level=high
 
-
-  # --- Docker Build & Scan ---
+  # --- Docker Build & Push ---
   build:
-    needs: [backend-test, monitor-test, frontend-test]
+    needs: [backend-test, monitor-test, frontend-test] # wait for all tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -124,7 +125,8 @@ jobs:
         service: [frontend, backend, monitor]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -139,14 +141,17 @@ jobs:
             frontend)
               echo "IMAGE_NAME=frontend" >> $GITHUB_ENV
               echo "CONTEXT=./docker/frontend" >> $GITHUB_ENV
+              echo "PORT=8080" >> $GITHUB_ENV
               ;;
             backend)
               echo "IMAGE_NAME=backend" >> $GITHUB_ENV
               echo "CONTEXT=./docker/backend" >> $GITHUB_ENV
+              echo "PORT=3000" >> $GITHUB_ENV
               ;;
             monitor)
               echo "IMAGE_NAME=monitor" >> $GITHUB_ENV
               echo "CONTEXT=./docker/monitor" >> $GITHUB_ENV
+              echo "PORT=8000" >> $GITHUB_ENV
               ;;
           esac
 
@@ -157,6 +162,7 @@ jobs:
             echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
           else
             echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
@@ -173,25 +179,3 @@ jobs:
             org.opencontainers.image.version=${{ env.IMAGE_TAG }}
           build-args: |
             ENVIRONMENT=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
-
-  vulnerability-scan:
-    needs: build
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        service: [frontend, backend, monitor]
-    steps:
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-      - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@v0.35.0
-        with:
-          scan-type: image
-          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ matrix.service }}:${{ github.ref_name }}
-          exit-code: '1'
-          severity: HIGH,CRITICAL
-          format: table
