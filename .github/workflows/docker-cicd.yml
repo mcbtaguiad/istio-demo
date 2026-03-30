@@ -53,7 +53,6 @@ jobs:
       - name: Run govulncheck
         working-directory: docker/backend
         run: |
-          go mod init github.com/mcbtaguiad/istio-demo/backend
           go mod tidy
           go mod download
           go install golang.org/x/vuln/cmd/govulncheck@latest
