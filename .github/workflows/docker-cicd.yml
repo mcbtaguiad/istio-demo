@@ -15,8 +15,36 @@ jobs:
       - name: Checkout repository
         id: repo-path
         uses: actions/checkout@v4
+
+  # --- Go Tests ---
+  backend-test:
+    needs: checkout
+
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        go-version: [1.25]   # set your Go version
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Install dependencies
+        working-directory: docker/backend
+        run: go mod tidy
+
+      - name: Run Go tests
+        working-directory: docker/backend
+        run: go test ./... -v
+
   # --- Python Tests ---
-  python-test:
+  monitor-test:
     needs: checkout
 
     runs-on: ubuntu-latest
@@ -51,7 +79,7 @@ jobs:
         run: isort --check-only docker/monitor/app.py
 
   # --- React Tests ---
-  react-test:
+  frontend-test:
     needs: checkout
 
     runs-on: ubuntu-latest
