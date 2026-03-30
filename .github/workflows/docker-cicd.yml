@@ -3,6 +3,8 @@ name: tags-cicd
 on:
   push:
     branches: [ "main" ]
+    # Trigger on tag creation
+    tags: [ 'v*' ]  # Matches any tags starting with 'v', e.g., v1.0.0
   pull_request:
     branches: [ "main" ]
 
@@ -102,7 +104,7 @@ jobs:
 
   # --- Docker Build & Push ---
   build:
-    needs: [backend-test, monitor-test, frontend-test] 
+    needs: [backend-test, monitor-test, frontend-test] # wait for all tests
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -142,15 +144,14 @@ jobs:
               ;;
           esac
 
-      - name: Extract Docker metadata
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=tag
-            static
+      - name: Determine image tag
+        id: tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
@@ -158,9 +159,12 @@ jobs:
           context: ${{ env.CONTEXT }}
           file: ${{ env.CONTEXT }}/Dockerfile
           push: true
-          tags: |
-            ${{ steps.meta.outputs.tags }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ github.ref_name }}_${{ matrix.service }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          labels: |
+            org.opencontainers.image.created=${{ github.run_started_at }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
+            org.opencontainers.image.title=istio-demo
+            org.opencontainers.image.version=${{ env.IMAGE_TAG }}
           build-args: |
             ENVIRONMENT=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
