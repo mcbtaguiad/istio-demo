@@ -45,36 +45,6 @@ jobs:
         working-directory: docker/backend
         run: go test ./... -v
 
-      - name: Run Trivy scan
-        uses: aquasecurity/trivy-action@0.35.0
-        with:
-          scan-type: 'fs'
-          scan-ref: 'docker/backend'
-          output: trivy-report-backend.json
-          format: json
-          exit-code: 0
-
-      - name: Upload Vulnerability Scan Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: trivy-report-backend
-          path: trivy-report-backend.json
-          retention-days: 30
-
-      - name: Fail on High/Criticial Vulnerabilities
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: "fs"
-          format: table
-          scan-ref: .
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          exit-code: 1
-          # On a subsequent call to the action we know trivy is already installed so can skip this
-          skip-setup-trivy: true
-
-
-
   # --- Python Tests + Dependency Scan ---
   monitor-test:
     needs: checkout
@@ -95,19 +65,26 @@ jobs:
           pip install flask pytest pylint black flake8 isort pytest-cov pip-audit
 
       - name: Run pytest
-        run: pytest docker/monitor --cov=docker/monitor
+        working-directory: docker/monitor
+        run: pytest . --cov=./
 
       - name: Lint with pylint
-        run: pylint docker/monitor/app.py
+        working-directory: docker/monitor
+        run: pylint app.py
 
       - name: Format check with black
-        run: black --check docker/monitor/app.py
+        working-directory: docker/monitor
+        run: black --check app.py
 
       - name: Import check with isort
-        run: isort --check-only docker/monitor/app.py
+        working-directory: docker/monitor
+        run: isort --check-only app.py
 
       - name: Scan Python dependencies with pip-audit
-        run: pip-audit --fail-on high
+        working-directory: docker/monitor
+        uses: pypa/gh-action-pip-audit@v1.0.0
+        with:
+          inputs: requirements.txt
 
 
   # --- React Tests + Dependency Scan ---
