@@ -18,6 +18,8 @@ RUN npm run build
 # ---- Production Stage ----
 FROM nginx:1.29-alpine
 
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+
 # Remove default nginx config
 RUN rm -rf /usr/share/nginx/html/*
 

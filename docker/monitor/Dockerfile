@@ -4,6 +4,8 @@ LABEL Maintainer="Mark Taguiad <marktaguiad@marktaguiad.dev>"
 
 WORKDIR /app
 
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+
 COPY app.py /app/app.py
 
 RUN pip install --no-cache-dir flask gunicorn

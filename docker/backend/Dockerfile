@@ -4,6 +4,8 @@ LABEL Maintainer="Mark Taguiad <marktaguiad@marktaguiad.dev>"
 
 WORKDIR /app
 
+RUN apk update && apk upgrade && rm -rf /var/cache/apk/*
+
 # COPY go.mod go.sum ./
 # RUN go mod download
 
