@@ -46,12 +46,10 @@ jobs:
         run: go test ./... -v
 
       - name: Run Trivy scan
-        working-directory: docker/backend
-        run: go test ./... -v
         uses: aquasecurity/trivy-action@0.33.1
           with:
           scan-type: 'fs'
-          scan-ref: '.'
+          scan-ref: 'docker/backend'
           output: trivy-report-backend.json
           format: json
           exit-code: 0
