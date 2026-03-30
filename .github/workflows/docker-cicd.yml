@@ -47,7 +47,7 @@ jobs:
 
       - name: Run Trivy scan
         uses: aquasecurity/trivy-action@0.33.1
-          with:
+        with:
           scan-type: 'fs'
           scan-ref: 'docker/backend'
           output: trivy-report-backend.json
