@@ -5,6 +5,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_REPO: ${{ github.repository }}
+
 jobs:
 
   checkout:
