@@ -35,14 +35,14 @@ jobs:
         with:
           go-version: ${{ matrix.go-version }}
 
-      # - name: Install dependencies
-      #   working-directory: docker/backend
-      #   run: go mod tidy
+      - name: Install dependencies
+        working-directory: docker/backend
+        run: go mod tidy
 
       - name: Run Go tests
         working-directory: docker/backend
-        # run: go test ./... -v
-        run: go test -v main_test.go
+        run: go test ./... -v
+        # run: go test -v main_test.go
 
   # --- Python Tests ---
   monitor-test:
