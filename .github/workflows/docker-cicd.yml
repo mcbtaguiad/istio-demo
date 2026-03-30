@@ -39,7 +39,7 @@ jobs:
           pip install flask pytest pylint black flake8 isort pytest-cov
 
       - name: Run pytest
-        run: pytest repo/docker/monitor --cov=docker/monitor
+        run: pytest docker/monitor --cov=docker/monitor
 
       - name: Lint with pylint
         run: pylint docker/monitor/app.py
