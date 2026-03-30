@@ -7,6 +7,9 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/alicebob/miniredis/v2"
+	"github.com/redis/go-redis/v9"
 )
 
 // helper to create a request and record the response
@@ -28,9 +31,19 @@ func performRequest(handler http.Handler, method, path string, body any, token s
 }
 
 func TestRegisterLoginProfile(t *testing.T) {
-	// Clear Redis before testing
-	rdb.FlushDB(ctx)
+	// Start a mock Redis server
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("failed to start miniredis: %v", err)
+	}
+	defer mr.Close()
 
+	// Override global rdb with mock Redis
+	rdb = redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+
+	// Set up the HTTP handlers
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/register", registerHandler)
 	mux.HandleFunc("/api/login", loginHandler)
