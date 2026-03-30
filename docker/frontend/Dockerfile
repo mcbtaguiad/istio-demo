@@ -1,5 +1,5 @@
 # ---- Build Stage ----
-FROM node:25-trixie AS builder
+FROM node:25-alpine AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN npm run build
 
 
 # ---- Production Stage ----
-FROM nginx:1.28-trixie
+FROM nginx:1.29-alpine
 
 # Remove default nginx config
 RUN rm -rf /usr/share/nginx/html/*
