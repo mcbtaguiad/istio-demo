@@ -39,16 +39,16 @@ jobs:
           pip install flask pytest pylint black flake8 isort pytest-cov
 
       - name: Run pytest
-        run: pytest repo/docker/monitor --cov=repo/docker/monitor
+        run: pytest repo/docker/monitor --cov=docker/monitor
 
       - name: Lint with pylint
-        run: pylint repo/docker/monitor/app.py
+        run: pylint docker/monitor/app.py
 
       - name: Format check with black
-        run: black --check repo/docker/monitor/app.py
+        run: black --check docker/monitor/app.py
 
       - name: Import check with isort
-        run: isort --check-only repo/docker/monitor/app.py
+        run: isort --check-only docker/monitor/app.py
 
   # --- React Tests ---
   react-test:
@@ -63,7 +63,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v5
         with:
-          node-version: 18
+          node-version: 22
           cache: 'npm'
           cache-dependency-path: docker/frontend/package-lock.json
 
