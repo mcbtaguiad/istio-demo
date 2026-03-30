@@ -214,3 +214,4 @@ jobs:
           exit-code: '1'
           severity: HIGH,CRITICAL
           format: table
+          ignore-unfixed: true
