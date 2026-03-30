@@ -24,7 +24,7 @@ jobs:
 
     strategy:
       matrix:
-        go-version: [1.25]   # set your Go version
+        go-version: [1.25.7]   # set your Go version
 
     steps:
       - name: Checkout repo
