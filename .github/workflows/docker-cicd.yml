@@ -3,8 +3,7 @@ name: tags-cicd
 on:
   push:
     branches: [ "main" ]
-    # Trigger on tag creation
-    tags: [ 'v*' ]  # Matches any tags starting with 'v', e.g., v1.0.0
+    tags: [ 'v*' ] # release tags
   pull_request:
     branches: [ "main" ]
 
@@ -23,7 +22,7 @@ jobs:
         id: repo-path
         uses: actions/checkout@v4
 
-  # --- Go Tests ---
+  # --- Go Tests + Dependency Scan ---
   backend-test:
     needs: checkout
     runs-on: ubuntu-latest
@@ -31,8 +30,7 @@ jobs:
       matrix:
         go-version: [1.25.7]
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Go
         uses: actions/setup-go@v4
@@ -47,7 +45,15 @@ jobs:
         working-directory: docker/backend
         run: go test ./... -v
 
-  # --- Python Tests ---
+      - name: Scan Go dependencies with Trivy
+        uses: aquasecurity/trivy-action@v2
+        with:
+          scan-type: fs
+          directory: docker/backend
+          format: table
+          exit-code: '1' # fail job if vulnerabilities found
+
+  # --- Python Tests + Dependency Scan ---
   monitor-test:
     needs: checkout
     runs-on: ubuntu-latest
@@ -55,8 +61,7 @@ jobs:
       matrix:
         python-version: [3.12.8]
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -65,7 +70,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install flask pytest pylint black flake8 isort pytest-cov
+          pip install flask pytest pylint black flake8 isort pytest-cov pip-audit
 
       - name: Run pytest
         run: pytest docker/monitor --cov=docker/monitor
@@ -79,13 +84,23 @@ jobs:
       - name: Import check with isort
         run: isort --check-only docker/monitor/app.py
 
-  # --- React Tests ---
+      - name: Scan Python dependencies with pip-audit
+        run: pip-audit --fail-on high
+
+      - name: Scan Python project with Trivy
+        uses: aquasecurity/trivy-action@v2
+        with:
+          scan-type: fs
+          directory: docker/monitor
+          format: table
+          exit-code: '1'
+
+  # --- React Tests + Dependency Scan ---
   frontend-test:
     needs: checkout
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Setup Node
         uses: actions/setup-node@v5
@@ -102,9 +117,21 @@ jobs:
         working-directory: docker/frontend
         run: npm run test -- --coverage
 
-  # --- Docker Build & Push ---
+      - name: Scan Node dependencies with npm audit
+        working-directory: docker/frontend
+        run: npm audit --audit-level=high
+
+      - name: Scan React project with Trivy
+        uses: aquasecurity/trivy-action@v2
+        with:
+          scan-type: fs
+          directory: docker/frontend
+          format: table
+          exit-code: '1'
+
+  # --- Docker Build & Scan ---
   build:
-    needs: [backend-test, monitor-test, frontend-test] # wait for all tests
+    needs: [backend-test, monitor-test, frontend-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -114,8 +141,7 @@ jobs:
         service: [frontend, backend, monitor]
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v2
@@ -130,17 +156,14 @@ jobs:
             frontend)
               echo "IMAGE_NAME=frontend" >> $GITHUB_ENV
               echo "CONTEXT=./docker/frontend" >> $GITHUB_ENV
-              echo "PORT=8080" >> $GITHUB_ENV
               ;;
             backend)
               echo "IMAGE_NAME=backend" >> $GITHUB_ENV
               echo "CONTEXT=./docker/backend" >> $GITHUB_ENV
-              echo "PORT=3000" >> $GITHUB_ENV
               ;;
             monitor)
               echo "IMAGE_NAME=monitor" >> $GITHUB_ENV
               echo "CONTEXT=./docker/monitor" >> $GITHUB_ENV
-              echo "PORT=8000" >> $GITHUB_ENV
               ;;
           esac
 
@@ -151,7 +174,6 @@ jobs:
             echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
           else
             echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
-          fi
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
@@ -168,3 +190,11 @@ jobs:
             org.opencontainers.image.version=${{ env.IMAGE_TAG }}
           build-args: |
             ENVIRONMENT=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
+
+      - name: Scan Docker image with Trivy
+        uses: aquasecurity/trivy-action@v2
+        with:
+          scan-type: image
+          image-ref: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          exit-code: '1'
+          format: table
