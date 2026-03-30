@@ -82,9 +82,7 @@ jobs:
 
       - name: Scan Python dependencies with pip-audit
         working-directory: docker/monitor
-        uses: pypa/gh-action-pip-audit@v1.0.0
-        with:
-          inputs: requirements.txt
+        run: pip-audit -r requirements.txt --strict
 
 
   # --- React Tests + Dependency Scan ---
