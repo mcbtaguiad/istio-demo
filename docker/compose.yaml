@@ -1,7 +1,7 @@
 services:
   frontend:
     container_name: frontend
-    image: docker.io/mcbtaguiad/istio-demo:frontend
+    image: ghcr.io/mcbtaguiad/istio-demo/frontend:main
     build:
       context: ./frontend
       dockerfile: Dockerfile
@@ -10,7 +10,7 @@ services:
       - "8080:80"
   backend:
     container_name: backend
-    image: docker.io/mcbtaguiad/istio-demo:backend
+    image: ghcr.io/mcbtaguiad/istio-demo/backend:main
     build:
       context: ./backend
       dockerfile: Dockerfile
@@ -23,7 +23,7 @@ services:
       - "3000:3000"
   monitor:
     container_name: monitor
-    image: docker.io/mcbtaguiad/istio-demo:monitor
+    image: ghcr.io/mcbtaguiad/istio-demo/monitor:main
     build:
       context: ./monitor
       dockerfile: Dockerfile
