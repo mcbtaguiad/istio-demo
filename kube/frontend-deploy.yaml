@@ -18,7 +18,7 @@ spec:
       serviceAccountName: frontend-sa
       containers:
       - name: frontend
-        image: docker.io/mcbtaguiad/istio-demo:frontend
+        image: ghcr.io/mcbtaguiad/istio-demo/frontend:main
         imagePullPolicy: Always
         ports:
         - containerPort: 80

@@ -21,7 +21,7 @@ spec:
       serviceAccountName: backend-sa
       containers:
       - name: backend
-        image: docker.io/mcbtaguiad/istio-demo:backend
+        image: ghcr.io/mcbtaguiad/istio-demo/backend:main
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
@@ -52,7 +52,7 @@ spec:
       serviceAccountName: backend-sa
       containers:
       - name: backend
-        image: docker.io/mcbtaguiad/istio-demo:backend
+        image: ghcr.io/mcbtaguiad/istio-demo/backend:main
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
