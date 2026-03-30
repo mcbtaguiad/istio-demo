@@ -1,4 +1,4 @@
-FROM python:3.12-alpine
+FROM python:3.14-trixie
 
 LABEL Maintainer="Mark Taguiad <marktaguiad@marktaguiad.dev>"
 
