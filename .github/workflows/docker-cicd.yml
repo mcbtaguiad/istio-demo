@@ -47,6 +47,12 @@ jobs:
         working-directory: docker/backend
         run: go test ./... -v
 
+      - name: Run govulncheck
+        uses: golang/govulncheck-action@v1
+        with:
+          work-dir: 'docker/backend'
+          upload-results: true
+
   # --- Python Tests ---
   monitor-test:
     needs: checkout
