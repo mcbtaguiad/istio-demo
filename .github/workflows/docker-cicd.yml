@@ -15,32 +15,56 @@ jobs:
       - name: Checkout repository
         id: repo-path
         uses: actions/checkout@v4
-
-  monitor-app-test:
+  # --- Python Tests ---
+  python-test:
     needs: checkout
+
     runs-on: ubuntu-latest
+
     strategy:
       matrix:
-        python-version: [3.12.9]
+        python-version: [3.12.8] 
+
     steps:
-      - name: Use repository
-        uses: actions/checkout@v4
-        with:
-          path: repo  # optional: put in a subfolder
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install deps
+
+      - name: Install dependencies
         run: |
           pip install flask pytest pylint black flake8 isort pytest-cov
+
       - name: Run pytest
         run: pytest repo/docker/monitor --cov=repo/docker/monitor
-      - name: Lint
+
+      - name: Lint with pylint
         run: pylint repo/docker/monitor/app.py
-      - name: Format check
+
+      - name: Format check with black
         run: black --check repo/docker/monitor/app.py
-      - name: Check imports
+
+      - name: Import check with isort
         run: isort --check-only repo/docker/monitor/app.py
 
+  # --- React Tests ---
+  react-test:
+    needs: checkout
 
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 18
+          cache: 'npm'
+          cache-dependency-path: docker/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: docker/frontend
+        run: npm ci   # ✅ deterministic install
+
+      - name: Run React tests
+        working-directory: docker/frontend
+        run: npm run test -- --coverage
