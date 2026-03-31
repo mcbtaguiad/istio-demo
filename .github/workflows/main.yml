@@ -128,7 +128,7 @@ jobs:
   # --- Docker Build & Push ---
   build:
     if: github.event.pull_request.merged == true
-    needs: [backend-test, monitor-test, frontend-test] # wait for all tests
+    needs: [backend-test, monitor-test, frontend-test]
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -185,7 +185,7 @@ jobs:
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}  # add SHA tag
+            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           labels: |
             org.opencontainers.image.created=${{ github.run_started_at }}
             org.opencontainers.image.revision=${{ github.sha }}

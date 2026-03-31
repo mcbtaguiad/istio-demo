@@ -1,0 +1,117 @@
+name: istio-cicd
+
+on:
+  push:
+    branches: [ "**" ]
+
+jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    outputs:
+      repo-path: ${{ steps.repo-path.outputs.path }}
+    steps:
+      - name: Checkout repository
+        id: repo-path
+        uses: actions/checkout@v4
+
+  # --- Go Tests ---
+  backend-test:
+    needs: checkout
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        go-version: [1.26.1]
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      # - name: Install dependencies
+      #   working-directory: docker/backend
+      #   run: go mod tidy
+
+      - name: Run Go tests
+        working-directory: docker/backend
+        run: |
+          go mod init github.com/mcbtaguiad/istio-demo/backend
+          go mod tidy
+          go test ./... -v
+
+      - name: Run govulncheck
+        working-directory: docker/backend
+        run: |
+          go mod tidy
+          go mod download
+          go install golang.org/x/vuln/cmd/govulncheck@latest
+          govulncheck ./...
+
+
+  # --- Python Tests ---
+  monitor-test:
+    needs: checkout
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.12.8]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          pip install flask pytest pylint black flake8 isort pytest-cov pip-audit
+
+      - name: Run pytest
+        working-directory: docker/monitor
+        run: pytest . --cov=./
+
+      - name: Lint with pylint
+        working-directory: docker/monitor
+        run: pylint app.py
+
+      - name: Format check with black
+        working-directory: docker/monitor
+        run: black --check app.py
+
+      - name: Import check with isort
+        working-directory: docker/monitor
+        run: isort --check-only app.py
+
+      - name: Scan Python dependencies with pip-audit
+        working-directory: docker/monitor
+        run: pip-audit -r requirements.txt --strict
+
+  # --- React Tests ---
+  frontend-test:
+    needs: checkout
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: docker/frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: docker/frontend
+        run: npm ci
+
+      - name: Run React tests
+        working-directory: docker/frontend
+        run: npm run test -- --coverage
+
+      - name: Scan Node dependencies with npm audit
+        working-directory: docker/frontend
+        run: npm audit --audit-level=high
