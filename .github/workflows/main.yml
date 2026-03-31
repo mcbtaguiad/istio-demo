@@ -1,4 +1,4 @@
-name: tags-cicd
+name: istio-cicd
 
 on:
   pull_request:
