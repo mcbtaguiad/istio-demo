@@ -1,0 +1,7 @@
+[
+  {
+    "op": "replace",
+    "path": "/metadata/name",
+    "value": "monitor-v1"
+  }
+]
