@@ -1,0 +1,12 @@
+[
+  {
+    "op": "replace",
+    "path": "/metadata/name",
+    "value": "monitor-v1"
+  },
+  {
+    "op": "replace",
+    "path": "/spec/selector/app",
+    "value": "monitor-v1"
+  }
+]

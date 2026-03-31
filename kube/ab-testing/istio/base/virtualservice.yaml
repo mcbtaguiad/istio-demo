@@ -1,0 +1,58 @@
+
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: route-ab-testing
+  namespace: demo
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - demo-app-gateway
+
+  http:
+    # /api - backend A/B testing
+    - match:
+        - uri:
+            prefix: /api/
+      route:
+        - destination:
+            host: backend
+            subset: v1
+            port:
+              number: 3000
+          weight: 50
+        - destination:
+            host: backend
+            subset: v2
+            port:
+              number: 3000
+          weight: 50
+
+    # /status - monitor A/B testing
+    - match:
+        - uri:
+            prefix: /status
+      route:
+        - destination:
+            host: monitor
+            subset: v1
+            port:
+              number: 8000
+          weight: 50
+        - destination:
+            host: monitor
+            subset: v2
+            port:
+              number: 8000
+          weight: 50
+
+    # /app - frontend A/B testing
+    - match:
+        - uri:
+            prefix: /app
+      route:
+        - destination:
+            host: frontend
+            port:
+              number: 80
