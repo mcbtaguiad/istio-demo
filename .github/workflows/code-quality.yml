@@ -6,7 +6,6 @@ on:
 
 jobs:
   checkout:
-    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       repo-path: ${{ steps.repo-path.outputs.path }}
@@ -17,7 +16,6 @@ jobs:
 
   # --- Go Tests ---
   backend-test:
-    if: github.event.pull_request.merged == true
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -54,7 +52,6 @@ jobs:
 
   # --- Python Tests ---
   monitor-test:
-    if: github.event.pull_request.merged == true
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -94,7 +91,6 @@ jobs:
 
   # --- React Tests ---
   frontend-test:
-    if: github.event.pull_request.merged == true
     needs: checkout
     runs-on: ubuntu-latest
     steps:
