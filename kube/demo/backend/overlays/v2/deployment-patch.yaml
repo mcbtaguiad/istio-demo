@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  labels:
+    version: v2
+spec:
+  selector:
+    matchLabels:
+      version: v2
+  template:
+    metadata:
+      labels:
+        version: v2
+    spec:
+      containers:
+      - name: backend
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: backend-config
+      restartPolicy: Always
