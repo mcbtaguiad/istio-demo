@@ -6,7 +6,7 @@ on:
 
 jobs:
   checkout:
-    if: github.event_name == 'push' && github.actor != 'web-flow'
+    if: github.event_name == 'push' && github.event.head_commit.message != null && !startsWith(github.event.head_commit.message, 'Merge pull request')
     runs-on: ubuntu-latest
     outputs:
       repo-path: ${{ steps.repo-path.outputs.path }}
@@ -17,7 +17,7 @@ jobs:
 
   # --- Go Tests ---
   backend-test:
-    if: github.event_name == 'push' && github.actor != 'web-flow'
+    if: github.event_name == 'push' && github.event.head_commit.message != null && !startsWith(github.event.head_commit.message, 'Merge pull request')
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -54,7 +54,7 @@ jobs:
 
   # --- Python Tests ---
   monitor-test:
-    if: github.event_name == 'push' && github.actor != 'web-flow'
+    if: github.event_name == 'push' && github.event.head_commit.message != null && !startsWith(github.event.head_commit.message, 'Merge pull request')
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -94,7 +94,7 @@ jobs:
 
   # --- React Tests ---
   frontend-test:
-    if: github.event_name == 'push' && github.actor != 'web-flow'
+    if: github.event_name == 'push' && github.event.head_commit.message != null && !startsWith(github.event.head_commit.message, 'Merge pull request')
     needs: checkout
     runs-on: ubuntu-latest
     steps:
