@@ -195,6 +195,9 @@ jobs:
           build-args: |
             ENVIRONMENT=${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
 
   vulnerability-scan:
     if: github.event.pull_request.merged == true
@@ -254,7 +257,7 @@ jobs:
       # A/B image injection
       - name: Update images via kustomize (A/B)
         run: |
-          cd ${{ env.ENV_PATH }}
+          cd kube/ab-testing/environments/demo-dev
 
           # Backend (A/B)
           kustomize edit set image backend-v1=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.SHA_OLD }}
@@ -269,7 +272,7 @@ jobs:
 
       - name: Deploy
         run: |
-          kubectl apply -k kube/environments/demo-dev --insecure-skip-tls-verify=true
+          kubectl apply -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
 
       - name: Verify rollout
         run: |
