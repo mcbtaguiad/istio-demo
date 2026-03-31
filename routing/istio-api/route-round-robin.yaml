@@ -1,0 +1,41 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: route-round-robin
+  namespace: demo
+spec:
+  hosts:
+    - "*"
+  gateways:
+    - demo-app-gateway
+
+  http:
+    # /api
+    - match:
+        - uri:
+            prefix: /api/
+      route:
+        - destination:
+            host: backend
+            port:
+              number: 3000
+
+    # /status
+    - match:
+        - uri:
+            prefix: /status
+      route:
+        - destination:
+            host: monitor
+            port:
+              number: 8000
+
+    # /app
+    - match:
+        - uri:
+            prefix: /app
+      route:
+        - destination:
+            host: frontend
+            port:
+              number: 80

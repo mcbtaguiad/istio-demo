@@ -1,0 +1,36 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: demo-app-rr
+spec:
+  parentRefs:
+    - name: demo-app-gateway
+  rules:
+    # Backend API 
+    - matches:
+        - path:
+            type: RegularExpression
+            value: /api/.*
+      backendRefs:
+        - name: backend
+          port: 3000
+
+
+    # Monitor /status
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /status
+      backendRefs:
+        - name: monitor
+          port: 8000
+
+
+    # Frontend /app 
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /app
+      backendRefs:
+        - name: frontend
+          port: 80
