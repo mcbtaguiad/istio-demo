@@ -1,8 +1,0 @@
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: redis.environment
-immutable: false
-data:
-  ALLOW_EMPTY_PASSWORD: 'yes'
-  REDIS_DISABLE_COMMANDS: 'FLUSHDB,FLUSHALL'
