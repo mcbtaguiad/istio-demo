@@ -219,3 +219,61 @@ jobs:
           severity: HIGH,CRITICAL
           format: table
           ignore-unfixed: true
+
+  deploy:
+    needs: vulnerability-scan
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Setup Kustomize
+        run: |
+          curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+
+      - name: Determine image tag
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
+          else
+            echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
+          fi
+
+      - name: Select environment
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == "main" || "${GITHUB_REF}" == refs/tags/* ]]; then
+            echo "ENV_PATH=kube/environments/demo-prod" >> $GITHUB_ENV
+          else
+            echo "ENV_PATH=kube/environments/demo-dev" >> $GITHUB_ENV
+          fi
+
+      # 🔥 Inject images into the environment
+      - name: Update images via kustomize
+        run: |
+          cd ${{ env.ENV_PATH }}
+
+          kustomize edit set image backend=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.IMAGE_TAG }}
+          kustomize edit set image frontend=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/frontend:${{ env.IMAGE_TAG }}
+          kustomize edit set image monitor=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/monitor:${{ env.IMAGE_TAG }}
+
+      - name: Deploy
+        run: |
+          kubectl apply -k ${{ env.ENV_PATH }} --insecure-skip-tls-verify=true
+
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/frontend --insecure-skip-tls-verify=true
+          kubectl rollout status deployment/backend-v1 --insecure-skip-tls-verify=true
+          kubectl rollout status deployment/backend-v2 --insecure-skip-tls-verify=true
+          kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true
+          kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true
+          kubectl rollout status deployment/redis --insecure-skip-tls-verify=true

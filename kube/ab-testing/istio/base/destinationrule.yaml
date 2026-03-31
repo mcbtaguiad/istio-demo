@@ -1,8 +1,7 @@
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
-  name: backend
-  namespace: demo
+  name: backend-destinationrule
 spec:
   host: backend
   subsets:
@@ -12,12 +11,25 @@ spec:
     - name: v2
       labels:
         version: v2
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 200
+        connectTimeout: 2s
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 20
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 25
+
 ---
-apiVersion: networking.istio.io/v1beta1
+apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
-  name: monitor
-  namespace: demo
+  name: monitor-destinationrule
 spec:
   host: monitor
   subsets:
@@ -27,3 +39,39 @@ spec:
     - name: v2
       labels:
         version: v2
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 200
+        connectTimeout: 2s
+      http:
+        http1MaxPendingRequests: 100
+        maxRequestsPerConnection: 20
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 25
+
+
+---
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: frontend-destinationrule
+spec:
+  host: frontend
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 100
+        connectTimeout: 2s
+      http:
+        http1MaxPendingRequests: 50
+        maxRequestsPerConnection: 10
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 25
+

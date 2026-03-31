@@ -1,0 +1,25 @@
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: read-write-frontend-to-backend 
+spec:
+  selector:
+    matchLabels:
+      app: backend
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: 
+        - "cluster.local/ns/demo/sa/frontend-sa"
+        - "cluster.local/ns/istio-system/sa/istio-ingressgateway-service-account"
+    to:
+    - operation:
+        methods: ["GET", "POST", "DELETE", "PUT", "OPTIONS"]
+        paths:
+        - "/api/register"
+        - "/api/login"
+        - "/api/profile"
+        - "/api/version"
+        - "/api/users"

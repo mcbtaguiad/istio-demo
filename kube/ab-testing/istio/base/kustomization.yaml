@@ -4,3 +4,6 @@ resources:
 - destinationrule.yaml
 - gateway.yaml
 - virtualservice.yaml
+- mtls.yaml
+- rbac-readwrite-frontend-to-backend.yaml
+- rbac-readwrite-monitor-to-backend.yaml
