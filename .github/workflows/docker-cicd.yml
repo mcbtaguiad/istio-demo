@@ -1,20 +1,17 @@
 name: tags-cicd
 
 on:
-  push:
-    branches: [ "main" ]
-    # Trigger on tag creation
-    tags: [ 'v*' ]  # Matches any tags starting with 'v', e.g., v1.0.0
   pull_request:
     branches: [ "main" ]
+    types: [ closed ]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_REPO: ${{ github.repository }}
 
 jobs:
-
   checkout:
+    if: github.event.pull_request.merged == true
     runs-on: ubuntu-latest
     outputs:
       repo-path: ${{ steps.repo-path.outputs.path }}
@@ -25,6 +22,7 @@ jobs:
 
   # --- Go Tests ---
   backend-test:
+    if: github.event.pull_request.merged == true
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -61,6 +59,7 @@ jobs:
 
   # --- Python Tests ---
   monitor-test:
+    if: github.event.pull_request.merged == true
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -100,6 +99,7 @@ jobs:
 
   # --- React Tests ---
   frontend-test:
+    if: github.event.pull_request.merged == true
     needs: checkout
     runs-on: ubuntu-latest
     steps:
@@ -127,6 +127,7 @@ jobs:
 
   # --- Docker Build & Push ---
   build:
+    if: github.event.pull_request.merged == true
     needs: [backend-test, monitor-test, frontend-test] # wait for all tests
     runs-on: ubuntu-latest
     permissions:
@@ -196,6 +197,7 @@ jobs:
 
 
   vulnerability-scan:
+    if: github.event.pull_request.merged == true
     needs: build
     runs-on: ubuntu-latest
     strategy:
