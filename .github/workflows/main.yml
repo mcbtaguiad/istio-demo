@@ -226,6 +226,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   1
 
       - name: Setup kubectl
         uses: azure/setup-kubectl@v4
@@ -240,34 +242,34 @@ jobs:
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
 
-      - name: Determine image tag
+      # A/B SHAs (based on merged PR commits)
+      - name: Determine A/B SHAs
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "IMAGE_TAG=${GITHUB_REF#refs/tags/}" >> $GITHUB_ENV
-          else
-            echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
-          fi
+          SHA_NEW=$(git rev-parse HEAD)
+          SHA_OLD=$(git rev-parse HEAD~1)
 
-      - name: Select environment
-        run: |
-          if [[ "${GITHUB_REF_NAME}" == "main" || "${GITHUB_REF}" == refs/tags/* ]]; then
-            echo "ENV_PATH=kube/environments/demo-prod" >> $GITHUB_ENV
-          else
-            echo "ENV_PATH=kube/environments/demo-dev" >> $GITHUB_ENV
-          fi
+          echo "SHA_NEW=$SHA_NEW" >> $GITHUB_ENV
+          echo "SHA_OLD=$SHA_OLD" >> $GITHUB_ENV
 
-      # 🔥 Inject images into the environment
-      - name: Update images via kustomize
+      # A/B image injection
+      - name: Update images via kustomize (A/B)
         run: |
           cd ${{ env.ENV_PATH }}
 
-          kustomize edit set image backend=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.IMAGE_TAG }}
-          kustomize edit set image frontend=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/frontend:${{ env.IMAGE_TAG }}
-          kustomize edit set image monitor=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/monitor:${{ env.IMAGE_TAG }}
+          # Backend (A/B)
+          kustomize edit set image backend-v1=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.SHA_OLD }}
+          kustomize edit set image backend-v2=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.SHA_NEW }}
+
+          # Monitor (A/B)
+          kustomize edit set image monitor-v1=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/monitor:${{ env.SHA_OLD }}
+          kustomize edit set image monitor-v2=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/monitor:${{ env.SHA_NEW }}
+
+          # Frontend (latest only)
+          kustomize edit set image frontend=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/frontend:${{ env.SHA_NEW }}
 
       - name: Deploy
         run: |
-          kubectl apply -k ${{ env.ENV_PATH }} --insecure-skip-tls-verify=true
+          kubectl apply -k kube/environments/demo-dev --insecure-skip-tls-verify=true
 
       - name: Verify rollout
         run: |
@@ -277,3 +279,4 @@ jobs:
           kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true
           kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true
           kubectl rollout status deployment/redis --insecure-skip-tls-verify=true
+
