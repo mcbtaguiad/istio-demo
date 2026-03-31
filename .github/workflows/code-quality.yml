@@ -1,4 +1,4 @@
-name: istio-cicd
+name: code-quality-check
 
 on:
   push:
@@ -6,6 +6,7 @@ on:
 
 jobs:
   checkout:
+    if: github.event_name == 'push' && github.actor != 'web-flow'
     runs-on: ubuntu-latest
     outputs:
       repo-path: ${{ steps.repo-path.outputs.path }}
@@ -16,6 +17,7 @@ jobs:
 
   # --- Go Tests ---
   backend-test:
+    if: github.event_name == 'push' && github.actor != 'web-flow'
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -52,6 +54,7 @@ jobs:
 
   # --- Python Tests ---
   monitor-test:
+    if: github.event_name == 'push' && github.actor != 'web-flow'
     needs: checkout
     runs-on: ubuntu-latest
     strategy:
@@ -91,6 +94,7 @@ jobs:
 
   # --- React Tests ---
   frontend-test:
+    if: github.event_name == 'push' && github.actor != 'web-flow'
     needs: checkout
     runs-on: ubuntu-latest
     steps:
