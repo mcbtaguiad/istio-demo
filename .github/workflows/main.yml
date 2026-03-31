@@ -1,4 +1,4 @@
-name: istio-cicd
+name: istio-demo-cicd
 
 on:
   pull_request:
