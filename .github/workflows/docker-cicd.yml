@@ -182,7 +182,9 @@ jobs:
           context: ${{ env.CONTEXT }}
           file: ${{ env.CONTEXT }}/Dockerfile
           push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+          tags: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ env.IMAGE_TAG }}
+            ${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}  # add SHA tag
           labels: |
             org.opencontainers.image.created=${{ github.run_started_at }}
             org.opencontainers.image.revision=${{ github.sha }}
