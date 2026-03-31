@@ -91,3 +91,34 @@ func TestRegisterLoginProfile(t *testing.T) {
 		t.Fatalf("expected username %s, got %s", creds.Username, profile["username"])
 	}
 }
+func TestHealthEndpoint(t *testing.T) {
+	// Start mock Redis
+	mr, err := miniredis.Run()
+	if err != nil {
+		t.Fatalf("failed to start miniredis: %v", err)
+	}
+	defer mr.Close()
+
+	// Override global Redis client
+	rdb = redis.NewClient(&redis.Options{
+		Addr: mr.Addr(),
+	})
+
+	// Setup mux
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/health", healthHandler)
+
+	// Call endpoint
+	resp := performRequest(mux, "GET", "/api/health", nil, "")
+
+	if resp.Code != http.StatusOK {
+		t.Fatalf("expected 200 OK, got %d", resp.Code)
+	}
+
+	var data map[string]string
+	json.NewDecoder(resp.Body).Decode(&data)
+
+	if data["status"] != "ok" {
+		t.Fatalf("expected status ok, got %s", data["status"])
+	}
+}

@@ -232,6 +232,22 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func healthHandler(w http.ResponseWriter, r *http.Request) {
+	// optional: check Redis connectivity
+	err := rdb.Ping(ctx).Err()
+
+	status := "ok"
+	if err != nil {
+		status = "degraded"
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"status":    status,
+		"version":   getVersion(),
+		"timestamp": time.Now().UTC(),
+	})
+}
+
 func main() {
 	allowedHostsEnv := os.Getenv("ALLOWED_HOSTS")
 
@@ -261,6 +277,7 @@ func main() {
 	mux.HandleFunc("/api/login", loginHandler)
 	mux.HandleFunc("/api/profile", authMiddleware(profileHandler))
 	mux.HandleFunc("/api/version", versionHandler)
+	mux.HandleFunc("/api/health", healthHandler)
 	mux.HandleFunc("/api/users", authMiddleware(listUsersHandler))
 	// mux.HandleFunc("/api/users/", authMiddleware(deleteUserHandler))
 	mux.HandleFunc("/api/users/", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
