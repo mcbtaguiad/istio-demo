@@ -226,6 +226,7 @@ jobs:
           ignore-unfixed: true
 
   deploy-dev:
+    if: github.event.pull_request.merged == true
     needs: vulnerability-scan
     runs-on: ubuntu-latest
 
@@ -277,6 +278,7 @@ jobs:
           kubectl apply -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
 
   smoke-test:
+    if: github.event.pull_request.merged == true
     needs: deploy-dev
     runs-on: ubuntu-latest
 
@@ -353,6 +355,7 @@ jobs:
           fi
 
   cleanup:
+    if: github.event.pull_request.merged == true
     needs: smoke-test
     runs-on: ubuntu-latest
 
@@ -379,6 +382,7 @@ jobs:
 
 
   deploy-prod:
+    if: github.event.pull_request.merged == true
     needs: cleanup
     runs-on: ubuntu-latest
 
