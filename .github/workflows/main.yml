@@ -227,7 +227,7 @@ jobs:
           format: table
           ignore-unfixed: true
 
-  deploy:
+  deploy-dev:
     needs: vulnerability-scan
     runs-on: ubuntu-latest
 
@@ -278,12 +278,83 @@ jobs:
         run: |
           kubectl apply -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
 
+
+
+  smoke-test:
+    runs-on: ubuntu-latest
+
+    env:
+      # APP_HOST: ${{ secrets.DEV_APP_HOST }}
+      NAMESPACE: demo-dev
+      JOB_NAME: smoke-test
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Setup kubectl (assumes kubeconfig stored as secret)
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+
+      # Wait for pods to be Ready
+      - name: Wait for Kubernetes pods
+        run: |
+          echo "Waiting for pods in namespace $NAMESPACE..."
+
+          kubectl wait --for=condition=ready pod \
+            --all \
+            -n $NAMESPACE \
+            --timeout=120s
+
       - name: Verify rollout
         run: |
-          kubectl rollout status deployment/frontend --insecure-skip-tls-verify=true
-          kubectl rollout status deployment/backend-v1 --insecure-skip-tls-verify=true
-          kubectl rollout status deployment/backend-v2 --insecure-skip-tls-verify=true
-          kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true
-          kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true
-          kubectl rollout status deployment/redis --insecure-skip-tls-verify=true
+          kubectl rollout status deployment/frontend --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/backend-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/backend-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/redis --insecure-skip-tls-verify=true -n $NAMESPACE
+
+      - name: Deploy smoke test job
+        run: |
+          kubectl create -k test/smoke-test/environments/demo-dev
+
+      - name: Wait for job completion
+        run: |
+          echo "Waiting for job to complete..."
+
+          kubectl wait \
+            --for=condition=complete \
+            job/$JOB_NAME \
+            -n $NAMESPACE \
+            --timeout=180s
+
+      - name: Check job status
+        run: |
+          FAILED=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.status.failed}')
+          SUCCEEDED=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.status.succeeded}')
+
+          echo "Succeeded: $SUCCEEDED"
+          echo "Failed: $FAILED"
+
+          if [ "$FAILED" != "" ] && [ "$FAILED" != "0" ]; then
+            echo "Smoke test FAILED"
+            kubectl logs job/$JOB_NAME -n $NAMESPACE
+            exit 1
+          fi
+
+          if [ "$SUCCEEDED" == "1" ]; then
+            echo "Smoke test PASSED"
+          else
+            echo "Smoke test did not complete successfully"
+            kubectl logs job/$JOB_NAME -n $NAMESPACE
+            exit 1
+          fi
+
+      - name: Show logs
+        if: always()
+        run: |
+          kubectl logs job/$JOB_NAME -n $NAMESPACE --all-containers=true || true
 
