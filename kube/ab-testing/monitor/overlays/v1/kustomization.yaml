@@ -28,4 +28,4 @@ configMapGenerator:
 - name: monitor-config
   literals:
   - VERSION=1.0.0
-  - DEMO_APP_HOST=http://192.168.254.220,https://istio-demo-dev.marktaguiad.dev,https://istio-demo-prod.marktaguiad.dev
+  - DEMO_APP_HOST=http://192.168.254.220

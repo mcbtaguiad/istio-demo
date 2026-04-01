@@ -22,3 +22,18 @@ resources:
 
   # istio
   - ../../istio/base
+
+patches:
+- target:
+    group: security.istio.io
+    version: v1
+    kind: AuthorizationPolicy
+    name: read-write-frontend-to-backend 
+  path: frontend-authpolicy-patch.yaml
+
+- target:
+    group: security.istio.io
+    version: v1
+    kind: AuthorizationPolicy
+    name: read-write-monitor-to-backend
+  path: monitor-authpolicy-patch.yaml
