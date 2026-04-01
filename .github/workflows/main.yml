@@ -379,7 +379,7 @@ jobs:
 
 
   deploy-prod:
-    needs: smoke-test
+    needs: cleanup
     runs-on: ubuntu-latest
 
     steps:
