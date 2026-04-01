@@ -1,0 +1,19 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: demo
+
+resources:
+
+  # shared/common (ONLY ONCE)
+  - ../../base
+
+
+
+patches:
+- target:
+    group: security.istio.io
+    version: v1
+    kind: AuthorizationPolicy
+    name: read-write-smoketest-to-backend
+  path: authpolicy-patch.yaml
