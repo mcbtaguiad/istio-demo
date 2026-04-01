@@ -412,7 +412,7 @@ jobs:
       # A/B image injection
       - name: Update images via kustomize (A/B)
         run: |
-          cd kube/ab-testing/environments/demo-dev
+          cd kube/ab-testing/environments/demo-prod
 
           # Backend (A/B)
           kustomize edit set image backend-v1=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.SHA_OLD }}
