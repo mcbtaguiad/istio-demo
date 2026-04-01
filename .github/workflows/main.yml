@@ -180,7 +180,6 @@ jobs:
             echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
           fi
 
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
@@ -201,7 +200,6 @@ jobs:
 
           cache-from: type=gha
           cache-to: type=gha,mode=max
-
 
   vulnerability-scan:
     if: github.event.pull_request.merged == true
@@ -277,8 +275,6 @@ jobs:
       - name: Deploy
         run: |
           kubectl apply -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
-
-
 
   smoke-test:
     needs: deploy-dev
@@ -375,8 +371,60 @@ jobs:
 
       - name: Delete smoke test job
         run: |
-          kubectl create -k test/smoke-test/environments/demo-dev --insecure-skip-tls-verify=true
+          kubectl delete -k test/smoke-test/environments/demo-dev --insecure-skip-tls-verify=true
 
       - name: Delete demo-dev
         run: |
-          kubectl apply -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
+          kubectl delete -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
+
+
+  deploy-prod:
+    needs: smoke-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2   1
+
+      - name: Setup kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Setup Kustomize
+        run: |
+          curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Set kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+
+      # A/B SHAs (based on merged PR commits)
+      - name: Determine A/B SHAs
+        run: |
+          SHA_NEW=$(git rev-parse HEAD)
+          SHA_OLD=$(git rev-parse HEAD~1)
+
+          echo "SHA_NEW=$SHA_NEW" >> $GITHUB_ENV
+          echo "SHA_OLD=$SHA_OLD" >> $GITHUB_ENV
+
+      # A/B image injection
+      - name: Update images via kustomize (A/B)
+        run: |
+          cd kube/ab-testing/environments/demo-dev
+
+          # Backend (A/B)
+          kustomize edit set image backend-v1=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.SHA_OLD }}
+          kustomize edit set image backend-v2=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/backend:${{ env.SHA_NEW }}
+
+          # Monitor (A/B)
+          kustomize edit set image monitor-v1=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/monitor:${{ env.SHA_OLD }}
+          kustomize edit set image monitor-v2=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/monitor:${{ env.SHA_NEW }}
+
+          # Frontend (latest only)
+          kustomize edit set image frontend=${{ env.REGISTRY }}/${{ env.IMAGE_REPO }}/frontend:${{ env.SHA_NEW }}
+
+      - name: Deploy
+        run: |
+          kubectl apply -k kube/ab-testing/environments/demo-prod --insecure-skip-tls-verify=true
