@@ -281,6 +281,7 @@ jobs:
 
 
   smoke-test:
+    needs: deploy-dev
     runs-on: ubuntu-latest
 
     env:
@@ -306,7 +307,8 @@ jobs:
           kubectl wait --for=condition=ready pod \
             --all \
             -n $NAMESPACE \
-            --timeout=120s
+            --timeout=120s \
+            --insecure-skip-tls-verify=true
 
       - name: Verify rollout
         run: |
@@ -319,7 +321,7 @@ jobs:
 
       - name: Deploy smoke test job
         run: |
-          kubectl create -k test/smoke-test/environments/demo-dev
+          kubectl create -k test/smoke-test/environments/demo-dev --insecure-skip-tls-verify=true
 
       - name: Wait for job completion
         run: |
@@ -329,19 +331,20 @@ jobs:
             --for=condition=complete \
             job/$JOB_NAME \
             -n $NAMESPACE \
-            --timeout=180s
+            --timeout=180s \
+            --insecure-skip-tls-verify=true
 
       - name: Check job status
         run: |
-          FAILED=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.status.failed}')
-          SUCCEEDED=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.status.succeeded}')
+          FAILED=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.status.failed}' --insecure-skip-tls-verify=true)
+          SUCCEEDED=$(kubectl get job $JOB_NAME -n $NAMESPACE -o jsonpath='{.status.succeeded}' --insecure-skip-tls-verify=true)
 
           echo "Succeeded: $SUCCEEDED"
           echo "Failed: $FAILED"
 
           if [ "$FAILED" != "" ] && [ "$FAILED" != "0" ]; then
             echo "Smoke test FAILED"
-            kubectl logs job/$JOB_NAME -n $NAMESPACE
+            kubectl logs job/$JOB_NAME -n $NAMESPACE --insecure-skip-tls-verify=true
             exit 1
           fi
 
@@ -349,12 +352,31 @@ jobs:
             echo "Smoke test PASSED"
           else
             echo "Smoke test did not complete successfully"
-            kubectl logs job/$JOB_NAME -n $NAMESPACE
+            kubectl logs job/$JOB_NAME -n $NAMESPACE --insecure-skip-tls-verify=true
             exit 1
           fi
 
-      - name: Show logs
-        if: always()
-        run: |
-          kubectl logs job/$JOB_NAME -n $NAMESPACE --all-containers=true || true
+  cleanup:
+    needs: smoke-test
+    runs-on: ubuntu-latest
 
+    env:
+      NAMESPACE: demo-dev
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      # Setup kubectl (assumes kubeconfig stored as secret)
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
+
+      - name: Delete smoke test job
+        run: |
+          kubectl create -k test/smoke-test/environments/demo-dev --insecure-skip-tls-verify=true
+
+      - name: Delete demo-dev
+        run: |
+          kubectl apply -k kube/ab-testing/environments/demo-dev --insecure-skip-tls-verify=true
