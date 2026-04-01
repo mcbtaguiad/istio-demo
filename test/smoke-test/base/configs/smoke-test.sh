@@ -1,8 +1,9 @@
-#!/usr/bin/env bash
+#!/bin/sh
 set -euo pipefail
 
 # BASE_URL="http://192.168.254.220"
-BASE_URL="${APP_HOST:?APP_HOST environment variable not set}"
+WEB_BASE_URL="${WEB_BASE_URL:?WEB_BASE_URL environment variable not set}"
+API_BASE_URL="${API_BASE_URL:?API_BASE_URL environment variable not set}"
 
 # Helper function for curl with status check
 function curl_check() {
@@ -35,12 +36,12 @@ function curl_check() {
 
 # API Health
 printf "\n======** API Health **======\n"
-curl_check GET "$BASE_URL/api/health" | jq
+curl_check GET "$API_BASE_URL/api/health"
 echo
 
 # Frontend Health (/app)
 printf "\n======** Frontend /app Health **======\n"
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/app")
+STATUS=$(curl -s -L -o /dev/null -w "%{http_code}" "$WEB_BASE_URL/app")
 if [ "$STATUS" -ne 200 ]; then
   echo "Frontend /app failed with status $STATUS"
   exit 1
@@ -49,7 +50,7 @@ echo "status: $STATUS"
 
 # Frontend Health (/status)
 printf "\n======** Frontend /status Health **======\n"
-STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE_URL/status")
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$WEB_BASE_URL/status")
 if [ "$STATUS" -ne 200 ]; then
   echo "Frontend /status failed with status $STATUS"
   exit 1
@@ -58,16 +59,16 @@ echo "status: $STATUS"
 
 # Create dummy accounts
 printf "\n======** Create User 'admin' **======\n"
-curl_check POST "$BASE_URL/api/register" '{"username":"admin","password":"admin"}'
+curl_check POST "$API_BASE_URL/api/register" '{"username":"admin","password":"admin"}'
 echo
 
 printf "\n======** Create User 'jonathan' **======\n"
-curl_check POST "$BASE_URL/api/register" '{"username":"jonathan","password":"123"}'
+curl_check POST "$API_BASE_URL/api/register" '{"username":"jonathan","password":"123"}'
 echo
 
 # Get token for 'admin'
 printf "\n======** Get Admin Token **======\n"
-TOKEN=$(curl_check POST "$BASE_URL/api/login" '{"username":"admin","password":"admin"}' | jq -r '.token')
+TOKEN=$(curl_check POST "$API_BASE_URL/api/login" '{"username":"admin","password":"admin"}' | jq -r '.token')
 if [ -z "$TOKEN" ] || [ "$TOKEN" == "null" ]; then
   echo "Failed to obtain JWT token"
   exit 1
@@ -76,20 +77,20 @@ echo "Token: $TOKEN"
 
 # List users
 printf "\n======** List Users **======\n"
-curl_check GET "$BASE_URL/api/users" "" "$TOKEN" | jq
+curl_check GET "$API_BASE_URL/api/users" "" "$TOKEN" | jq
 echo
 
 # Show version
 printf "\n======** API Version **======\n"
-curl_check GET "$BASE_URL/api/version" "" "$TOKEN" | jq
+curl_check GET "$API_BASE_URL/api/version" "" "$TOKEN" | jq
 echo
 
 # Update user password
 printf "\n======** Update Password for 'jonathan' **======\n"
-curl_check PUT "$BASE_URL/api/users/jonathan" '{"password":"456"}' "$TOKEN"
+curl_check PUT "$API_BASE_URL/api/users/jonathan" '{"password":"456"}' "$TOKEN"
 echo
 
 # Delete user
 printf "\n======** Delete User 'jonathan' **======\n"
-curl_check DELETE "$BASE_URL/api/users/jonathan" "" "$TOKEN"
+curl_check DELETE "$API_BASE_URL/api/users/jonathan" "" "$TOKEN"
 echo
