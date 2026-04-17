@@ -1,0 +1,19 @@
+apiVersion: install.istio.io/v1alpha1
+kind: IstioOperator
+metadata:
+  name: istio-control-plane
+  namespace: istio-system
+spec:
+  components:
+    ingressGateways:
+      - name: istio-ingressgateway-prod
+        namespace: istio-system
+        enabled: true
+        label:
+          istio: ingressgateway-prod
+
+      - name: istio-ingressgateway-dev
+        namespace: istio-system
+        enabled: true
+        label:
+          istio: ingressgateway-dev
