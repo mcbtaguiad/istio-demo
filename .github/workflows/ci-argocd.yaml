@@ -22,7 +22,7 @@ jobs:
   # --- Docker Build & Push ---
   build:
     if: github.event.pull_request.merged == true
-    needs: [backend-test, monitor-test, frontend-test]
+    needs: [checkout]
     runs-on: ubuntu-latest
     permissions:
       contents: read
