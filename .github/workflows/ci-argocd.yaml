@@ -19,17 +19,29 @@ jobs:
         id: repo-path
         uses: actions/checkout@v4
 
+  get-sha:
+    runs-on: ubuntu-latest
+    outputs:
+      sha_new: ${{ steps.sha.outputs.sha_new }}
+      sha_old: ${{ steps.sha.outputs.sha_old }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - id: sha
+        run: |
+          echo "sha_new=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+          echo "sha_old=$(git rev-parse HEAD~1)" >> $GITHUB_OUTPUT
+
   # --- Docker Build & Push ---
   build:
     if: github.event.pull_request.merged == true
-    needs: [checkout]
+    needs: [checkout, get-sha]
     runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
-    outputs:
-      sha_new: ${{ steps.sha.outputs.sha_new }}
-      sha_old: ${{ steps.sha.outputs.sha_old }}
     strategy:
       matrix:
         service: [frontend, backend, monitor]
@@ -77,12 +89,6 @@ jobs:
             echo "IMAGE_TAG=${GITHUB_REF_NAME}" >> $GITHUB_ENV
           fi
 
-      - name: Determine A/B SHAs
-        id: sha
-        run: |
-          echo "sha_new=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
-          echo "sha_old=$(git rev-parse HEAD~1)" >> $GITHUB_OUTPUT
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v4
         with:
@@ -106,7 +112,7 @@ jobs:
 
   vulnerability-scan:
     if: github.event.pull_request.merged == true
-    needs: build
+    needs: [build, get-sha]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -131,12 +137,12 @@ jobs:
 
   deploy-dev:
     if: github.event.pull_request.merged == true
-    needs: vulnerability-scan
+    needs: [vulnerability-scan, get-sha]
     runs-on: ubuntu-latest
 
     env:
-      SHA_NEW: ${{ needs.build.outputs.sha_new }}
-      SHA_OLD: ${{ needs.build.outputs.sha_old }}
+      SHA_NEW: ${{ needs.get-sha.outputs.sha_new }}
+      SHA_OLD: ${{ needs.get-sha.outputs.sha_old }}
 
     steps:
       - name: Clone GitOps repo
@@ -152,16 +158,16 @@ jobs:
           cd gitops-demo/istio-demo/ab-testing/environments/demo-dev 
 
           yq -i '
-          (.[] | select(.target.name == "backend-v1") | .patch) |=
+          (.patches[] | select(.target.name == "backend-v1") | .patch) |=
             sub("backend:.*"; "backend:" + env(SHA_OLD)) |
 
-          (.[] | select(.target.name == "backend-v2") | .patch) |=
+          (.patches[] | select(.target.name == "backend-v2") | .patch) |=
             sub("backend:.*"; "backend:" + env(SHA_NEW)) |
 
-          (.[] | select(.target.name == "monitor-v1") | .patch) |=
+          (.patches[] | select(.target.name == "monitor-v1") | .patch) |=
             sub("monitor:.*"; "monitor:" + env(SHA_OLD)) |
 
-          (.[] | select(.target.name == "monitor-v2") | .patch) |=
+          (.patches[] | select(.target.name == "monitor-v2") | .patch) |=
             sub("monitor:.*"; "monitor:" + env(SHA_NEW))
           ' kustomization.yaml
 
@@ -192,14 +198,14 @@ jobs:
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
 
-      # - name: Verify rollout
-      #   run: |
-      #     kubectl rollout status deployment/frontend --insecure-skip-tls-verify=true -n $NAMESPACE
-      #     kubectl rollout status deployment/backend-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
-      #     kubectl rollout status deployment/backend-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
-      #     kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
-      #     kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
-      #     kubectl rollout status deployment/redis --insecure-skip-tls-verify=true -n $NAMESPACE
+      - name: Verify rollout
+        run: |
+          kubectl rollout status deployment/frontend --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/backend-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/backend-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
+          kubectl rollout status deployment/redis --insecure-skip-tls-verify=true -n $NAMESPACE
 
       - name: Wait for job completion
         run: |
@@ -237,12 +243,12 @@ jobs:
 
   deploy-prod:
     if: github.event.pull_request.merged == true
-    needs: smoke-test
+    needs: [smoke-test, get-sha]
     runs-on: ubuntu-latest
 
     env:
-      SHA_NEW: ${{ needs.build.outputs.sha_new }}
-      SHA_OLD: ${{ needs.build.outputs.sha_old }}
+      SHA_NEW: ${{ needs.get-sha.outputs.sha_new }}
+      SHA_OLD: ${{ needs.get-sha.outputs.sha_old }}
 
     steps:
       - name: Clone GitOps repo
@@ -256,7 +262,7 @@ jobs:
       - name: Create promotion branch
         run: |
           cd gitops-demo
-          BRANCH=promote-${{ env.SHA }}
+          BRANCH=promote-${{ env.SHA_NEW }}
           git checkout -b $BRANCH
 
       - name: Update PROD images (A/B)
@@ -264,16 +270,16 @@ jobs:
           cd gitops-demo/istio-demo/ab-testing/environments/demo-prod
 
           yq -i '
-          (.[] | select(.target.name == "backend-v1") | .patch) |=
+          (.patches[] | select(.target.name == "backend-v1") | .patch) |=
             sub("backend:.*"; "backend:" + env(SHA_OLD)) |
 
-          (.[] | select(.target.name == "backend-v2") | .patch) |=
+          (.patches[] | select(.target.name == "backend-v2") | .patch) |=
             sub("backend:.*"; "backend:" + env(SHA_NEW)) |
 
-          (.[] | select(.target.name == "monitor-v1") | .patch) |=
+          (.patches[] | select(.target.name == "monitor-v1") | .patch) |=
             sub("monitor:.*"; "monitor:" + env(SHA_OLD)) |
 
-          (.[] | select(.target.name == "monitor-v2") | .patch) |=
+          (.patches[] | select(.target.name == "monitor-v2") | .patch) |=
             sub("monitor:.*"; "monitor:" + env(SHA_NEW))
           ' kustomization.yaml
 
