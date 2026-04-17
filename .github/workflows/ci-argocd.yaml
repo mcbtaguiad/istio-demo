@@ -263,6 +263,7 @@ jobs:
         run: |
           cd gitops-demo
           BRANCH=promote-${{ env.SHA_NEW }}
+
           git checkout -b $BRANCH
 
       - name: Update PROD images (A/B)
@@ -286,14 +287,20 @@ jobs:
       - name: Commit & push DEV
         run: |
           cd gitops-demo
+          BRANCH=promote-${{ env.SHA_NEW }}
+
           git add .
           git commit -m "prod: deploy ${{ env.SHA_NEW }}" || echo "no changes"
-          git push
+          git push origin $BRANCH
 
       - name: Create PR
         run: |
+          BRANCH=promote-${{ env.SHA_NEW }}
+
           gh pr create \
             --repo ${{ env.GITOPS_REPO }} \
+            --base main \
+            --head $BRANCH \
             --title "Promote to prod: ${{ env.SHA_NEW }}" \
             --body "Automated promotion from dev to prod"
         env:
