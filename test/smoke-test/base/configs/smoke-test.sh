@@ -58,8 +58,31 @@ fi
 echo "status: $STATUS"
 
 # Create dummy accounts
+create_user_if_not_exists() {
+  local USERNAME=$1
+  local PASSWORD=$2
+
+  RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$API_BASE_URL/api/register" \
+    -H "Content-Type: application/json" \
+    -d "{\"username\":\"$USERNAME\",\"password\":\"$PASSWORD\"}")
+
+  HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+  BODY=$(echo "$RESPONSE" | sed '$d')
+
+  if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+    echo "User '$USERNAME' created"
+  elif echo "$BODY" | grep -qi "exist"; then
+    echo "User '$USERNAME' already exists, skipping"
+  else
+    echo "Failed to create user '$USERNAME' (status $HTTP_CODE)"
+    echo "Response: $BODY"
+    exit 1
+  fi
+}
+
 printf "\n======** Create User 'admin' **======\n"
-curl_check POST "$API_BASE_URL/api/register" '{"username":"admin","password":"admin"}'
+# curl_check POST "$API_BASE_URL/api/register" '{"username":"admin","password":"admin"}'
+create_user_if_not_exists "admin" "admin"
 echo
 
 printf "\n======** Create User 'jonathan' **======\n"

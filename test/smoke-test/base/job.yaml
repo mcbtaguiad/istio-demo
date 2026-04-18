@@ -13,9 +13,9 @@ spec:
         command: ["/bin/sh"]
         env:
         - name: WEB_BASE_URL
-          value: "http://192.168.254.220" #"https://istio-demo-dev.marktaguiad.dev"
+          value: "http://192.168.254.222" #"https://istio-demo-dev.marktaguiad.dev"
         - name: API_BASE_URL
-          value: "http://192.168.254.220"
+          value: "http://192.168.254.222"
         args:
           - -c
           - |
@@ -28,6 +28,44 @@ spec:
         volumeMounts:
         - name: script
           mountPath: /scripts
+      initContainers:
+      - name: wait-for-services
+        image: curlimages/curl:latest
+        command:
+          - sh
+          - -c
+          - |
+            set -e
+
+            wait_for() {
+              NAME=$1
+              URL=$2
+              MAX_RETRIES=60
+              SLEEP_SECONDS=2
+
+              echo "Waiting for $NAME at $URL..."
+
+              i=1
+              while [ $i -le $MAX_RETRIES ]; do
+                if curl -sf "$URL"; then
+                  echo "$NAME is ready!"
+                  return 0
+                fi
+
+                echo "[$i/$MAX_RETRIES] $NAME not ready yet..."
+                i=$((i+1))
+                sleep $SLEEP_SECONDS
+              done
+
+              echo "Timeout waiting for $NAME"
+              exit 1
+            }
+
+            wait_for "web" "http://192.168.254.222/app"
+            wait_for "api" "http://192.168.254.222/api/health"
+            wait_for "service3" "http://192.168.254.222/status"
+
+            echo "All apps are ready!"
       volumes:
       - name: script
         configMap:

@@ -1,3 +1,0 @@
-- op: replace
-  path: /spec/rules/0/from/0/source/principals/0
-  value: "cluster.local/ns/demo-prod/sa/smoke-test-sa" 
