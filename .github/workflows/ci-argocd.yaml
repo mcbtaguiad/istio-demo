@@ -175,7 +175,7 @@ jobs:
         run: |
           cd gitops-demo
           git add .
-          git commit -m "dev: deploy ${{ env.SHA_NEW }}" || echo "no changes"
+          git commit -m "dev: deploy ${{ env.SHA_NEW }}"
           git push
 
   smoke-test:
@@ -308,7 +308,7 @@ jobs:
           BRANCH=promote-${{ env.SHA_NEW }}
 
           git add .
-          git commit -m "prod: deploy ${{ env.SHA_NEW }}" || echo "no changes"
+          git commit -m "prod: deploy ${{ env.SHA_NEW }}"
           git push origin $BRANCH
 
       - name: Create PR
