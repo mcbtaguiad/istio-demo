@@ -198,6 +198,17 @@ jobs:
           mkdir -p $HOME/.kube
           echo "${{ secrets.KUBECONFIG }}" > $HOME/.kube/config
 
+      # Wait for pods to be Ready
+      - name: Wait for Kubernetes pods
+        run: |
+          echo "Waiting for pods in namespace $NAMESPACE..."
+
+          kubectl wait --for=condition=ready pod \
+            --all \
+            -n $NAMESPACE \
+            --timeout=120s \
+            --insecure-skip-tls-verify=true
+
       - name: Verify rollout
         run: |
           kubectl rollout status deployment/frontend --insecure-skip-tls-verify=true -n $NAMESPACE
@@ -206,6 +217,10 @@ jobs:
           kubectl rollout status deployment/monitor-v1 --insecure-skip-tls-verify=true -n $NAMESPACE
           kubectl rollout status deployment/monitor-v2 --insecure-skip-tls-verify=true -n $NAMESPACE
           kubectl rollout status deployment/redis --insecure-skip-tls-verify=true -n $NAMESPACE
+
+      - name: Deploy smoke test job
+        run: |
+          kubectl create -k test/smoke-test/environments/demo-dev --insecure-skip-tls-verify=true
 
       - name: Wait for job completion
         run: |
@@ -240,6 +255,9 @@ jobs:
             exit 1
           fi
 
+      - name: Delete smoke test job
+        run: |
+          kubectl delete -k test/smoke-test/environments/demo-dev --insecure-skip-tls-verify=true
 
   deploy-prod:
     if: github.event.pull_request.merged == true
