@@ -17,10 +17,7 @@ import (
 
 var jwtKey = []byte("averysecretsecretkey")
 var ctx = context.Background()
-
-var rdb = redis.NewClient(&redis.Options{
-	Addr: "redis:6379",
-})
+var rdb *redis.Client
 
 type Credentials struct {
 	Username string `json:"username"`
@@ -39,17 +36,24 @@ func getVersion() string {
 	return v
 }
 
-//	func generateJWT(username string) (string, error) {
-//		token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-//			"username": username,
-//			"exp":      time.Now().Add(24 * time.Hour).Unix(),
-//		})
-//		return token.SignedString(jwtKey)
-//	}
+func getRedisAddr() string {
+	addr := os.Getenv("REDIS_ADDR")
+	if addr == "" {
+		return "redis:6379"
+	}
+	return addr
+}
+
+func initRedis() *redis.Client {
+	return redis.NewClient(&redis.Options{
+		Addr: getRedisAddr(),
+	})
+}
+
 func generateJWT(username string) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"username": username,
-		"iss":      "demo-app", // add this
+		"iss":      "demo-app",
 		"exp":      time.Now().Add(24 * time.Hour).Unix(),
 	})
 	return token.SignedString(jwtKey)
@@ -79,7 +83,13 @@ func authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		r.Header.Set("user", claims["username"].(string))
+		username, ok := claims["username"].(string)
+		if !ok {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		r.Header.Set("user", username)
 		next(w, r)
 	}
 }
@@ -169,11 +179,6 @@ func listUsersHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func deleteUserHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	username := strings.TrimPrefix(r.URL.Path, "/api/users/")
 	deleted, _ := rdb.Del(ctx, "user:"+username, "group:"+username).Result()
 
@@ -187,25 +192,7 @@ func deleteUserHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func versionHandler(w http.ResponseWriter, r *http.Request) {
-	json.NewEncoder(w).Encode(map[string]string{
-		"version": getVersion(),
-	})
-}
-
-func versionMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("X-Version", getVersion())
-		next.ServeHTTP(w, r)
-	})
-}
-
 func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	username := strings.TrimPrefix(r.URL.Path, "/api/users/")
 
 	var body struct {
@@ -217,7 +204,6 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// check if user exists
 	exists, _ := rdb.Exists(ctx, "user:"+username).Result()
 	if exists == 0 {
 		http.Error(w, "User not found", http.StatusNotFound)
@@ -232,8 +218,13 @@ func updatePasswordHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	json.NewEncoder(w).Encode(map[string]string{
+		"version": getVersion(),
+	})
+}
+
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	// optional: check Redis connectivity
 	err := rdb.Ping(ctx).Err()
 
 	status := "ok"
@@ -248,12 +239,20 @@ func healthHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func main() {
-	allowedHostsEnv := os.Getenv("ALLOWED_HOSTS")
+func versionMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Version", getVersion())
+		next.ServeHTTP(w, r)
+	})
+}
 
+func main() {
+	rdb = initRedis()
+
+	allowedHostsEnv := os.Getenv("ALLOWED_HOSTS")
 	originMap := make(map[string]bool)
 
-	// defaults
+	// default
 	originMap["http://localhost:3001"] = true
 
 	// env
@@ -266,11 +265,11 @@ func main() {
 		}
 	}
 
-	// convert map → slice
 	origins := make([]string, 0, len(originMap))
 	for origin := range originMap {
 		origins = append(origins, origin)
 	}
+
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/register", registerHandler)
@@ -279,27 +278,23 @@ func main() {
 	mux.HandleFunc("/api/version", versionHandler)
 	mux.HandleFunc("/api/health", healthHandler)
 	mux.HandleFunc("/api/users", authMiddleware(listUsersHandler))
-	// mux.HandleFunc("/api/users/", authMiddleware(deleteUserHandler))
 	mux.HandleFunc("/api/users/", authMiddleware(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == http.MethodDelete {
+		switch r.Method {
+		case http.MethodDelete:
 			deleteUserHandler(w, r)
-			return
-		}
-		if r.Method == http.MethodPut {
+		case http.MethodPut:
 			updatePasswordHandler(w, r)
-			return
+		default:
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		}
-
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}))
 
 	c := cors.New(cors.Options{
-		AllowedOrigins: origins,
-		// AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedOrigins:   origins,
 		AllowCredentials: true,
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowedMethods:   []string{"GET", "POST", "DELETE", "PUT", "OPTIONS"},
 	})
 
-	http.ListenAndServe(":3000", c.Handler(mux))
+	http.ListenAndServe(":3000", versionMiddleware(c.Handler(mux)))
 }
