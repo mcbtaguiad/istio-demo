@@ -28,4 +28,4 @@ configMapGenerator:
 - name: monitor-config
   literals:
   - VERSION=2.0.0
-  - DEMO_APP_HOST=http://192.168.254.221
+  - DEMO_APP_HOST=http://192.168.254.230
